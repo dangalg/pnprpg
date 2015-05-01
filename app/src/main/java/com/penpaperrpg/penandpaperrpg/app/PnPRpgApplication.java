@@ -4,6 +4,8 @@ import android.app.Application;
 import android.text.TextUtils;
 
 import com.parse.Parse;
+import com.parse.ParseObject;
+import com.penpaperrpg.penandpaperrpg.model.dao.Message;
 
 /**
  * Created by dangal on 5/1/15.
@@ -37,6 +39,8 @@ public class PnPRpgApplication extends Application {
     {
 
         Parse.enableLocalDatastore(this);
+        // Register your parse models here
+        ParseObject.registerSubclass(Message.class);
         Parse.initialize(this, YOUR_APPLICATION_ID, YOUR_CLIENT_KEY);
     }
 }

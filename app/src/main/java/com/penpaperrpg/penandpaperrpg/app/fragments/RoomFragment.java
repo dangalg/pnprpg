@@ -3,6 +3,7 @@ package com.penpaperrpg.penandpaperrpg.app.fragments;
 import android.app.Activity;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -10,15 +11,24 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ListView;
 import android.widget.Toast;
 
+import com.parse.FindCallback;
 import com.parse.LogInCallback;
 import com.parse.ParseAnonymousUtils;
 import com.parse.ParseException;
 import com.parse.ParseObject;
+import com.parse.ParseQuery;
 import com.parse.ParseUser;
 import com.parse.SaveCallback;
 import com.penpaperrpg.penandpaperrpg.R;
+import com.penpaperrpg.penandpaperrpg.app.adapters.ChatListAdapter;
+import com.penpaperrpg.penandpaperrpg.model.dao.Message;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -28,9 +38,29 @@ import com.penpaperrpg.penandpaperrpg.R;
  * Use the {@link RoomFragment#newInstance} factory method to
  * create an instance of this fragment.
  */
-public class RoomFragment extends Fragment {
+public class RoomFragment extends Fragment implements View.OnClickListener{
     private static final String TAG = RoomFragment.class.getName();
     private static String sUserId;
+    private ListView lvChat;
+    private ArrayList<Message> mMessages;
+    private ChatListAdapter mAdapter;
+    private static final int MAX_CHAT_MESSAGES_TO_SHOW = 50;
+    private static final int CHAT_REFRESH_RATE = 1000;
+    // Create a handler which can run code periodically
+    private Handler handler = new Handler();
+
+    // region dice
+
+    Button btDie2;
+    Button btDie4;
+    Button btDie6;
+    Button btDie8;
+    Button btDie10;
+    Button btDie12;
+    Button btDie20;
+    Button btDie100;
+
+    // endregion dice
 
     public static final String USER_ID_KEY = "userId";
 
@@ -85,12 +115,32 @@ public class RoomFragment extends Fragment {
         // Inflate the layout for this fragment
         View rootView = inflater.inflate(R.layout.fragment_room2, container, false);
 
+        btDie2 = (Button)rootView.findViewById(R.id.btDie2);
+        btDie2.setOnClickListener(this);
+        btDie4 = (Button)rootView.findViewById(R.id.btDie4);
+        btDie4.setOnClickListener(this);
+        btDie6 = (Button)rootView.findViewById(R.id.btDie6);
+        btDie6.setOnClickListener(this);
+        btDie8 = (Button)rootView.findViewById(R.id.btDie8);
+        btDie8.setOnClickListener(this);
+        btDie10 = (Button)rootView.findViewById(R.id.btDie10);
+        btDie10.setOnClickListener(this);
+        btDie12 = (Button)rootView.findViewById(R.id.btDie12);
+        btDie12.setOnClickListener(this);
+        btDie20 = (Button)rootView.findViewById(R.id.btDie20);
+        btDie20.setOnClickListener(this);
+        btDie100 = (Button)rootView.findViewById(R.id.btDie100);
+        btDie100.setOnClickListener(this);
+
         // User login
         if (ParseUser.getCurrentUser() != null) { // start with existing user
             startWithCurrentUser(rootView);
         } else { // If not logged in, login as a new anonymous user
             login(rootView);
         }
+
+        // Run the runnable object defined every 100ms
+        handler.postDelayed(runnable, CHAT_REFRESH_RATE);
 
         return rootView;
     }
@@ -156,32 +206,119 @@ public class RoomFragment extends Fragment {
         setupMessagePosting(rootView);
     }
 
-    // Setup button event handler which posts the entered message to Parse
+    // Setup message field and posting
     private void setupMessagePosting(View rootView) {
-        // Find the text field and button
         etMessage = (EditText) rootView.findViewById(R.id.etMessage);
         btSend = (Button) rootView.findViewById(R.id.btSend);
-        // When send button is clicked, create message object on Parse
+        lvChat = (ListView) rootView.findViewById(R.id.lvChat);
+        mMessages = new ArrayList<Message>();
+        mAdapter = new ChatListAdapter(getActivity(), sUserId, mMessages);
+        lvChat.setAdapter(mAdapter);
         btSend.setOnClickListener(new View.OnClickListener() {
 
             @Override
             public void onClick(View v) {
-                String data = etMessage.getText().toString();
-                ParseObject message = new ParseObject("Message");
-                message.put(USER_ID_KEY, sUserId);
-                message.put("body", data);
-                message.saveInBackground(new SaveCallback() {
-                    @Override
-                    public void done(ParseException e) {
-                        Toast.makeText(getActivity(), "Successfully created message on Parse",
-                                Toast.LENGTH_SHORT).show();
-                    }
-                });
-                etMessage.setText("");
+                sendMessageToParse(etMessage.getText().toString());
             }
         });
     }
 
+    private void sendMessageToParse(String text) {
+        String body = text;
+        // Use Message model to create new messages now
+        Message message = new Message();
+        message.setUserId(sUserId);
+        message.setBody(body);
+        message.saveInBackground(new SaveCallback() {
+            @Override
+            public void done(ParseException e) {
+                receiveMessage();
+            }
+        });
+        etMessage.setText("");
+    }
+
+    // Query messages from Parse so we can load them into the chat adapter
+    private void receiveMessage() {
+        // Construct query to execute
+        ParseQuery<Message> query = ParseQuery.getQuery(Message.class);
+        // Configure limit and sort order
+        query.setLimit(MAX_CHAT_MESSAGES_TO_SHOW);
+        query.orderByAscending("createdAt");
+        // Execute query to fetch all messages from Parse asynchronously
+        // This is equivalent to a SELECT query with SQL
+        query.findInBackground(new FindCallback<Message>() {
+            public void done(List<Message> messages, ParseException e) {
+                if (e == null) {
+                    mMessages.clear();
+                    mMessages.addAll(messages);
+                    mAdapter.notifyDataSetChanged(); // update adapter
+                    lvChat.invalidate(); // redraw listview
+                } else {
+                    Log.d("message", "Error: " + e.getMessage());
+                }
+            }
+        });
+    }
+
+    // Defines a runnable which is run every 100ms
+    private Runnable runnable = new Runnable() {
+        @Override
+        public void run() {
+            refreshMessages();
+            handler.postDelayed(this, CHAT_REFRESH_RATE);
+        }
+    };
+
+    private void refreshMessages() {
+        receiveMessage();
+    }
+
     // endregion Parse
+
+    // region dice
+
+    @Override
+    public void onClick(View v) {
+        switch (v.getId()) {
+            case R.id.btDie2:
+                sendMessageToParse(rollDice(2));
+                break;
+            case R.id.btDie4:
+                sendMessageToParse(rollDice(4));
+                break;
+            case R.id.btDie6:
+                sendMessageToParse(rollDice(6));
+                break;
+            case R.id.btDie8:
+                sendMessageToParse(rollDice(8));
+                break;
+            case R.id.btDie10:
+                sendMessageToParse(rollDice(10));
+                break;
+            case R.id.btDie12:
+                sendMessageToParse(rollDice(12));
+                break;
+            case R.id.btDie20:
+                sendMessageToParse(rollDice(20));
+                break;
+            case R.id.btDie100:
+                sendMessageToParse(rollDice(100));
+                break;
+            default:
+                break;
+        }
+    }
+
+    // endregion dice
+
+    private String rollDice(int dieNum){
+        Random randomGenerator = new Random();
+
+        int randomInt = randomGenerator.nextInt(dieNum);
+        return String.valueOf(randomInt + 1);
+    }
+
+
 
 }

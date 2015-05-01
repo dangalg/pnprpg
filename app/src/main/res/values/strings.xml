@@ -7,6 +7,16 @@
     <string name="message_hint">Enter Action</string>
     <string name="send">Send</string>
 
+    <!-- Dice -->
+    <string name="die2">2</string>
+    <string name="die4">4</string>
+    <string name="die6">6</string>
+    <string name="die8">8</string>
+    <string name="die10">10</string>
+    <string name="die12">12</string>
+    <string name="die20">20</string>
+    <string name="die100">100</string>
+
 <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
 
